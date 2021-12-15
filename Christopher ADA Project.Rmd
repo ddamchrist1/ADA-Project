@@ -1,0 +1,223 @@
+---
+title: "ADA PROJECT"
+author: "Christopher"
+date: "11/23/2021"
+output:
+  word_document: default
+  html_document: default
+---
+
+## Analysis Topic: ASSESSING THE RELATIONSHIP BETWEEN SOCIAL MEDIA USE AND PSYCHOLOGICAL DISTRESS AMONG ADOLESCENTS IN CALIFORNIA
+ - Null hypothesis: There is no relationship between social media use and psychological distress in the past month and year among     adolescents in California
+ - Alternative hypothesis: There is a relationship between social media use and psychological distress in the past month and year among adolescents in California
+
+
+# Conducting data management
+```{r}
+library(haven) ## importing data
+library(tidyverse) ## data management
+library(odds.n.ends)
+
+# importing data from stata to R to carry out data management
+teens_data <- read_dta("C:/Users/Christopher Damulira/Box/School 2020 - 2022/FL2021/Advance Data analysis/Final Project/teens_data.dta")
+## use the following link: https://wustl.box.com/s/awuzx1tsgehd41y94n1wv4e883q8ic2d
+
+# Select only the variables for this analysis through use of indexing
+teen <- teens_data[4:20]
+
+# renaming the variables in the dataset
+names(teen)[1:17]<-c("ever_cig", "sip_alcohol", "used_ecig", "internet", "socialMedia", "gender", "timesitting",  "e_cig", "pscy_year", "pscy_month", "race","psch_score",  "hh_size", "fam_poverty", "age", "age_ecig", "scho_typ")
+
+# Narrowing down the selection of variables for this analysis
+teenRec <- teen %>%
+  select(age, gender, socialMedia, ever_cig, used_ecig, internet, race, pscy_year, pscy_month, timesitting) %>%
+  mutate_at(vars(ever_cig, used_ecig, internet, socialMedia, gender, pscy_year, pscy_month, race), list(factor)) %>%
+  mutate(timesitting = timesitting / 60) ## transforming time from minutes to hours
+
+# inspect the dataset to know the variable type
+sapply(teenRec, class)
+
+# Changing all the categorical variables into factor type
+# Recoding all the categorical as appropriate.
+teenRec$ever_cig<-factor(teenRec$ever_cig, levels=c(0:1), labels=c("No", "Yes")) ## Ever used cigarettes 
+teenRec$used_ecig<-factor(teenRec$used_ecig, levels=c(0:1), labels=c("No", "Yes")) ## Used e-cigs
+teenRec$gender<-factor(teenRec$gender, levels=c(1:2), labels=c("Male", "Female")) ## Biological sex
+teenRec$pscy_month<-factor(teenRec$pscy_month, levels=c(0:1), labels=c("No", "Yes")) ## Psychological distress in the past month
+teenRec$pscy_year<-factor(teenRec$pscy_year, levels=c(0:1), labels=c("No", "Yes")) ## Psychological distress in the past Year
+teenRec$race<-factor(teenRec$race, levels=c(0:2), labels=c("Multiple race", "Latino", "White"))
+
+#Categorizing social media frequency use into two categories
+teenRec <- teenRec %>%
+  mutate(socialMedia_CAT = case_when(socialMedia %in% c("3", "4") ~ 0,
+                                     socialMedia %in% c("2") ~ 1,
+                                     socialMedia %in% c("1") ~ 2),
+         socialMedia_CAT = factor(socialMedia_CAT, 0:2, c("Low", "Moderate", "High"))) #make it as a factor variable
+
+
+#Categorizing internet frequency use into two categories
+teenRec <- teenRec %>%
+  mutate(internet_CAT = case_when(internet %in% c("3", "4") ~ 0,
+                                  internet %in% c("2") ~ 1,
+                                     internet %in% c("1") ~ 2),
+         internet_CAT = factor(internet_CAT, 0:2, c("Low", "Moderate", "High"))) #make it as a factor variable
+  
+#check type of variable in the dataset
+sapply(teenRec, class)
+
+#checking to make sure recode worked
+table(teen$ever_cig, teenRec$ever_cig)
+table(teen$used_ecig, teenRec$used_ecig)
+table(teen$gender, teenRec$gender)
+table(teen$pscy_year, teenRec$pscy_year)
+table(teen$pscy_month, teenRec$pscy_month)
+table(teen$race, teenRec$race)
+table(teen$internet, teenRec$internet_CAT)
+table(teen$socialMedia, teenRec$socialMedia_CAT)
+
+summary(teenRec$timesitting)
+```
+
+## Creating a descriptive table
+
+```{r}
+library(table1)
+# Defining well the labels in the table
+label(teenRec$age)<-"Age (years)"
+label(teenRec$timesitting)<-"Sitting time (Hours)"
+label(teenRec$race)<-"Race/Ethnicity"
+label(teenRec$ever_cig)<-"Ever used cigerettes"
+label(teenRec$used_ecig)<-"Used e-cigerettes"
+label(teenRec$internet_CAT)<-"Internet frequency use"
+label(teenRec$socialMedia_CAT)<-"Social Media frequency use"
+label(teenRec$pscy_year)<-"Pyschological distress in past year"
+label(teenRec$pscy_month)<-"Pyschological distress in past month"
+label(teenRec$gender)<-"Biological sex"
+
+#creating a descriptive table for my analysis
+table1(~age + timesitting + race + ever_cig + used_ecig + socialMedia_CAT + internet_CAT + pscy_year + pscy_month|gender, overall = "Total", footnote='SD = standard deviation', rowlabelhead="Variable", teenRec)
+```
+
+## Checking for assumption for a logistic regression model
+
+## Test assumptions of linearity and influence
+
+*Linearity*
+
+To perform the Box Tidwell test, I created a term for the predictor*log(predictor) and then ran a logistic regression with that term. 
+```{r}
+
+#linearity
+teen_cc <- teenRec %>%
+  mutate(timesitting.log = timesitting * log(timesitting)) %>% #creating log term for "timesitting" and "age" 
+  mutate(age.log = age * log(age))
+
+## Psychological distress in the past month
+boxTid_Tsitting <- glm(pscy_month ~ age + timesitting + race + socialMedia_CAT + internet_CAT  + ever_cig + used_ecig + gender + timesitting.log + age.log, teen_cc, family="binomial") #Box Tidwell technique, test the assumption of linearity
+summary(boxTid_Tsitting)
+
+## Psychological distress in the past year
+boxTid_Tsitting1 <- glm(pscy_year ~ age + timesitting + race + socialMedia_CAT + internet_CAT  + ever_cig + used_ecig + gender + timesitting.log + age.log, teen_cc, family="binomial") #Box Tidwell technique, test the assumption of linearity
+
+summary(boxTid_Tsitting1)
+
+```
+
+Results for assessing the assumption of linearity show that both age and time spent sitting are not significant and therefore there is no violation of linearity assumption
+
+*Influence*
+Here, we check for influential data using Cook's Distance.
+
+```{r}
+## Fitting the logistic regression model for psychological distress in the past year
+model1 <- glm(pscy_year ~age +gender + race + timesitting + ever_cig + used_ecig  + socialMedia_CAT + internet_CAT, data = teenRec, family="binomial")
+summary(model1)
+
+## Fitting the logistic regression model for psychological distress in the past month
+model2 <- glm(pscy_month ~age +gender + race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT, data = teenRec, family="binomial")
+summary(model2)
+```
+
+*Multicollinearity*
+
+```{r}
+#Variance Inflation Factors
+library(car)
+vif(model1)
+vif(model2)
+```
+
+*Model Fits*
+
+```{r, warning=FALSE}
+install.packages("blorr")
+library(blorr)
+#Various pseudo R squares, log likelihood, deviance, AIC, BIC
+blr_model_fit_stats(model1)
+
+#Hosmer lemeshow goodness of fit test: a significant p value indicates a bad fit
+blr_test_hosmer_lemeshow(model1)
+
+#Various pseudo R squares, log likelihood, deviance, AIC, BIC
+blr_model_fit_stats(model2)
+
+#Hosmer lemeshow goodness of fit test: a significant p value indicates a bad fit
+blr_test_hosmer_lemeshow(model2)
+```
+
+## Unadjusted Logistic models for psychological distress
+
+```{r}
+# Unadjusted logistic models for psychological distress in the past year
+model1_Unadj <- glm(pscy_year ~internet_CAT, data = teenRec, family="binomial")
+summary(model1_Unadj)
+
+# Unadjusted logistic models for psychological distress in the past month
+model2_Unadj <- glm(pscy_month ~internet_CAT, data = teenRec, family="binomial")
+summary(model2_Unadj)
+
+#calculate and print ORs and 95% CIs  
+ORmodel1_unadj<-exp(cbind(OR = coef(model1_Unadj), confint(model1_Unadj))) #calculate ORs and 95% CIs
+ORmodel1_unadj #print ORs and 95% CIs
+
+#calculate and print ORs and 95% CIs  
+ORmodel2_unadj<-exp(cbind(OR = coef(model2_Unadj), confint(model2_Unadj))) #calculate ORs and 95% CIs
+ORmodel2_unadj #print ORs and 95% CIs
+```
+
+## Adjusted Logistic models for psychological distress for psychological distress for the past month and year
+
+```{r}
+# Adjusted logistic models for psychological distress in the past year
+model1Logit <- glm(pscy_year ~age +gender + race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT, data = teenRec, family="binomial")
+summary(model1Logit)
+
+# Adjusted logistic models for psychological distress in the past month
+model2Logit <- glm(pscy_month ~age +gender + race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT, data = teenRec, family="binomial")
+summary(model2Logit)
+
+#calculate and print ORs and 95% CIs  
+ORmodel1_cat<-exp(cbind(OR = coef(model1Logit), confint(model1Logit))) #calculate ORs and 95% CIs
+ORmodel1_cat #print ORs and 95% CIs
+
+#calculate and print ORs and 95% CIs  
+ORmodel2_cat<-exp(cbind(OR = coef(model2Logit), confint(model2Logit))) #calculate ORs and 95% CIs
+ORmodel2_cat #print ORs and 95% CIs
+```
+
+
+## Run bibary logistic models to test the hypothesis that race modifies the association between social media use and psychological stress.
+
+```{r}
+# Adjusted logistic models for psychological distress in the past year with the interaction term
+model1_mod <- glm(pscy_year ~age +gender + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT*race, data = teenRec, family="binomial")
+summary(model1_mod)
+
+# Adjusted logistic models for psychological distress in the past month with the interaction term
+model2_mod <- glm(pscy_month ~age +gender + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT*race, data = teenRec, family="binomial")
+summary(model2_mod)
+
+#Test the hypothesis with the lrtest
+library(lmtest)
+lrtest(model1, model1_mod)
+lrtest(model2, model2_mod)
+```
