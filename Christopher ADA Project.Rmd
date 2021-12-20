@@ -93,8 +93,11 @@ label(teenRec$pscy_year)<-"Pyschological distress in past year"
 label(teenRec$pscy_month)<-"Pyschological distress in past month"
 label(teenRec$gender)<-"Biological sex"
 
-#creating a descriptive table for my analysis
-table1(~age + timesitting + race + ever_cig + used_ecig + socialMedia_CAT + internet_CAT + pscy_year + pscy_month|gender, overall = "Total", footnote='SD = standard deviation', rowlabelhead="Variable", teenRec)
+#creating a descriptive table for psychological distress in the year month
+table1(~gender + age + timesitting + race + ever_cig + used_ecig + socialMedia_CAT + internet_CAT|pscy_year, overall = "Total", footnote='SD = standard deviation', rowlabelhead="Variable", teenRec)
+
+#creating a descriptive table for psychological distress in the past month
+table1(~gender + age + timesitting + race + ever_cig + used_ecig + socialMedia_CAT + internet_CAT|pscy_month, overall = "Total", footnote='SD = standard deviation', rowlabelhead="Variable", teenRec)
 ```
 
 ## Checking for assumption for a logistic regression model
@@ -205,15 +208,15 @@ ORmodel2_cat #print ORs and 95% CIs
 ```
 
 
-## Run bibary logistic models to test the hypothesis that race modifies the association between social media use and psychological stress.
+## Run bibary logistic models to test the hypothesis that sex modifies the association between social media use and psychological stress.
 
 ```{r}
 # Adjusted logistic models for psychological distress in the past year with the interaction term
-model1_mod <- glm(pscy_year ~age +gender + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT*race, data = teenRec, family="binomial")
+model1_mod <- glm(pscy_year ~age + race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT*gender, data = teenRec, family="binomial")
 summary(model1_mod)
 
 # Adjusted logistic models for psychological distress in the past month with the interaction term
-model2_mod <- glm(pscy_month ~age +gender + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT*race, data = teenRec, family="binomial")
+model2_mod <- glm(pscy_month ~age + race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT*gender, data = teenRec, family="binomial")
 summary(model2_mod)
 
 #Test the hypothesis with the lrtest
@@ -221,3 +224,53 @@ library(lmtest)
 lrtest(model1, model1_mod)
 lrtest(model2, model2_mod)
 ```
+
+## Stratified analysis for sex 
+```{r}
+# Adjusted logistic models for psychological distress in the past year
+
+teenRec_m <- teenRec %>%
+  filter(gender %in% c("Male"))
+teenRec_f <- teenRec %>%
+  filter(gender %in% c("Female"))
+
+# Male
+model1_mod_m <- glm(pscy_year ~age +race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT, data = teenRec_m, family="binomial")
+summary(model1_mod_m)
+
+# Female
+model1_mod_f <- glm(pscy_year ~age +race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT, data = teenRec_f, family="binomial")
+summary(model1_mod_f)
+
+#-----------------------------------------------------------------------------------------------------------------------------
+# Adjusted logistic models for psychological distress in the past month
+
+# Male
+model2_mod_m <- glm(pscy_month ~age +race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT, data = teenRec_m, family="binomial")
+summary(model2_mod_m)
+
+# Female
+model2_mod_f <- glm(pscy_month ~age +race + timesitting + ever_cig + used_ecig + socialMedia_CAT + internet_CAT, data = teenRec_f, family="binomial")
+summary(model2_mod_f)
+
+#-----------------------------------------------------------------------------------------------------------------------------
+# Adjusted logistic models for psychological distress in the past year
+#calculate and print ORs and 95% CIs 
+# Male
+ORmodel1_mod1_m<-exp(cbind(OR = coef(model1_mod_m), confint(model1_mod_m))) #calculate ORs and 95% CIs
+ORmodel1_mod1_m #print ORs and 95% CIs
+
+# Female
+ORmodel1_mod1_f<-exp(cbind(OR = coef(model1_mod_f), confint(model1_mod_f))) #calculate ORs and 95% CIs
+ORmodel1_mod1_f #print ORs and 95% CIs
+
+# Adjusted logistic models for psychological distress in the past month
+# Male
+ORmodel2_mod2_m<-exp(cbind(OR = coef(model2_mod_m), confint(model2_mod_m))) #calculate ORs and 95% CIs
+ORmodel2_mod2_m #print ORs and 95% CIs
+
+# Female
+ORmodel2_mod2_f<-exp(cbind(OR = coef(model2_mod_f), confint(model2_mod_f))) #calculate ORs and 95% CIs
+ORmodel2_mod2_f #print ORs and 95% CIs
+```
+
